@@ -1,7 +1,6 @@
 import socket
 import threading
 
-# Función para enviar mensajes al servidor
 def send_message():
     while True:
         message = input()
@@ -13,8 +12,8 @@ def send_message():
 # Crear un socket TCP/IP
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-# Elegir el host y puerto al que conectar (el host y puerto del servidor)
-host = socket.gethostname()  # Este debería ser el nombre de host o la dirección IP del servidor
+# Elegir el host y puerto al que conectar
+host = socket.gethostname()
 port = 12345
 
 # Conectar el socket al servidor
@@ -26,5 +25,13 @@ send_thread.start()
 
 # Recibir mensajes del servidor
 while True:
-    data = client_socket.recv(1024)
-    print("Mensaje del otro jugador:", data.decode())
+    try:
+        data = client_socket.recv(1024)
+        if not data:
+            print("Conexión cerrada por el servidor.")
+            break
+        print("Mensaje de otro jugador:", data.decode())
+    except ConnectionResetError:
+        print("Conexión perdida con el servidor.")
+        break
+client_socket.close()

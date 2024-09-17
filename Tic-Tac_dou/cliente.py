@@ -7,6 +7,19 @@ buttons = []
 
 app = customtkinter.CTk()
 
+# Lista de información para los botones
+buttons_info = [
+    {"text": "", "row": 0, "column": 0},
+    {"text": "", "row": 0, "column": 1},
+    {"text": "", "row": 0, "column": 2},
+    {"text": "", "row": 1, "column": 0},
+    {"text": "", "row": 1, "column": 1},
+    {"text": "", "row": 1, "column": 2},
+    {"text": "", "row": 2, "column": 0},
+    {"text": "", "row": 2, "column": 1},
+    {"text": "", "row": 2, "column": 2},
+]
+
 # Función para enviar mensajes al servidor
 def send_message():
     while True:
@@ -30,40 +43,14 @@ def receive_messages():
             break
     client_socket.close()
 
-# Crear un socket TCP/IP
-client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-# Elegir el host y puerto al que conectar
-host = socket.gethostname()
-port = 12345
-
-# Conectar el socket al servidor
-client_socket.connect((host, port))
-
-# Iniciar un hilo para enviar mensajes al servidor
-send_thread = threading.Thread(target=send_message)
-send_thread.start()
-
-# Iniciar un hilo para recibir mensajes del servidor sin bloquear la interfaz
-receive_thread = threading.Thread(target=receive_messages)
-receive_thread.start()
-
-# Lista de información para los botones
-buttons_info = [
-    {"text": "", "row": 0, "column": 0},
-    {"text": "", "row": 0, "column": 1},
-    {"text": "", "row": 0, "column": 2},
-    {"text": "", "row": 1, "column": 0},
-    {"text": "", "row": 1, "column": 1},
-    {"text": "", "row": 1, "column": 2},
-    {"text": "", "row": 2, "column": 0},
-    {"text": "", "row": 2, "column": 1},
-    {"text": "", "row": 2, "column": 2},
-]
+# Función para cambiar texto del botón
+def change_button_text():
+    buttons[2].configure(text="Nuevo Texto")
 
 # Callback para los botones
 def button_callback(i):
     print(f"botón {i} presionado")
+    buttons[i-1].configure(state="disabled")
 
 # Creación de los botones y almacenamiento de referencia
 for i, button_info in enumerate(buttons_info):
@@ -77,9 +64,21 @@ for i, button_info in enumerate(buttons_info):
     button.grid(row=button_info["row"], column=button_info["column"], padx=10, pady=10)
     buttons.append(button)  # Almacenar cada botón en la lista
 
-# Cambiar el texto del tercer botón (índice 2)
-def change_button_text():
-    buttons[2].configure(text="Nuevo Texto")
+#--------------------------------------------------------------------------------------------------------------#
+
+# Crear un socket TCP/IP
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+# Elegir el host y puerto al que conectar
+host = socket.gethostname()
+port = 12345
+# Conectar el socket al servidor
+client_socket.connect((host, port))
+# Iniciar un hilo para enviar mensajes al servidor
+send_thread = threading.Thread(target=send_message)
+send_thread.start()
+# Iniciar un hilo para recibir mensajes del servidor sin bloquear la interfaz
+receive_thread = threading.Thread(target=receive_messages)
+receive_thread.start()
 
 # Iniciar la interfaz gráfica
 app.mainloop()

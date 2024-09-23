@@ -46,7 +46,7 @@ while True:
         client_socket.close()
         continue
 
-    # Asignar un ID único al cliente
     clients[client_id_counter] = client_socket
+    client_socket.send(str(client_id_counter).encode())  # Enviar el ID al cliente
     threading.Thread(target=handle_client, args=(client_socket, client_id_counter)).start()
     client_id_counter += 1

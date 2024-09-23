@@ -2,81 +2,68 @@ import socket
 import threading
 import customtkinter
 
-# Creamos un array para almacenar las referencias a los botones
+# Crear un array para almacenar las referencias a los botones
 buttons = []
 
 app = customtkinter.CTk()
 
-# Lista de información para los botones
-buttons_info = [
-    {"text": "", "row": 0, "column": 0},
-    {"text": "", "row": 0, "column": 1},
-    {"text": "", "row": 0, "column": 2},
-    {"text": "", "row": 1, "column": 0},
-    {"text": "", "row": 1, "column": 1},
-    {"text": "", "row": 1, "column": 2},
-    {"text": "", "row": 2, "column": 0},
-    {"text": "", "row": 2, "column": 1},
-    {"text": "", "row": 2, "column": 2},
-]
+# Crear un socket TCP/IP
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+host = socket.gethostname()
+port = 12345
+client_socket.connect((host, port))
 
-# Función para enviar mensajes al servidor
-def send_message():
-    while True:
-        message = input()
+# Variable para identificar el cliente
+client_id = None
+
+def send_message(message):
+    if message:
         client_socket.send(message.encode())
-        if message == "no me da":
-            client_socket.close()
-            break
 
-# Función para recibir mensajes del servidor
 def receive_messages():
+    global client_id
     while True:
         try:
             data = client_socket.recv(1024)
             if not data:
                 print("Conexión cerrada por el servidor.")
                 break
-            print("Mensaje de otro jugador:", data.decode())
+            
+            # Separar el índice del botón y el jugador
+            button_index, player = data.decode().split(',')
+            button_index = int(button_index) - 1
+            
+            # Actualizar el botón según el jugador
+            if player == "1":
+                buttons[button_index].configure(text="X", state="disabled")
+            elif player == "2":
+                buttons[button_index].configure(text="O", state="disabled")
         except ConnectionResetError:
             print("Conexión perdida con el servidor.")
             break
     client_socket.close()
 
-# Función para cambiar texto del botón
-def change_button_text():
-    buttons[2].configure(text="Nuevo Texto")
-
-# Callback para los botones
 def button_callback(i):
     print(f"botón {i} presionado")
-    buttons[i-1].configure(state="disabled")
+    if client_id==1:
+        buttons[i-1].configure(text="X", state="disabled",fg_color="red")  # Deshabilitar el botón en esta interfaz
+    else:
+        buttons[i-1].configure(text="O", state="disabled",fg_color="red")
+    send_message(f"{i},{client_id}")
 
-# Creación de los botones y almacenamiento de referencia
-for i, button_info in enumerate(buttons_info):
+# Crear botones
+for i in range(9):
     button = customtkinter.CTkButton(
         app, 
-        text=button_info["text"], 
-        command=lambda i=i: button_callback(i+1),  # Pasamos 'i' al callback
+        text="", 
+        command=lambda i=i: button_callback(i+1),
         height=100, 
         width=100
     )
-    button.grid(row=button_info["row"], column=button_info["column"], padx=10, pady=10)
-    buttons.append(button)  # Almacenar cada botón en la lista
+    button.grid(row=i // 3, column=i % 3, padx=10, pady=10)
+    buttons.append(button)
 
-#--------------------------------------------------------------------------------------------------------------#
-
-# Crear un socket TCP/IP
-client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# Elegir el host y puerto al que conectar
-host = socket.gethostname()
-port = 12345
-# Conectar el socket al servidor
-client_socket.connect((host, port))
-# Iniciar un hilo para enviar mensajes al servidor
-send_thread = threading.Thread(target=send_message)
-send_thread.start()
-# Iniciar un hilo para recibir mensajes del servidor sin bloquear la interfaz
+# Iniciar un hilo para recibir mensajes del servidor
 receive_thread = threading.Thread(target=receive_messages)
 receive_thread.start()
 

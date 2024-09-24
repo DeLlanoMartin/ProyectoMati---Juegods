@@ -16,6 +16,7 @@ client_socket.connect((host, port))
 # Variable para identificar el cliente
 client_id = None
 
+# Función para mandar mensajes
 def send_message(message):
     if message:
         client_socket.send(message.encode())
@@ -33,7 +34,7 @@ def receive_messages():
             if not data:
                 print("Conexión cerrada por el servidor.")
                 break
-            
+
             # Recibe el botón que el otro jugador presionó y su ID, luego lo separa en 2 variables
             button_index, player = data.decode().split(',')
             button_index = int(button_index) - 1
@@ -48,10 +49,9 @@ def receive_messages():
             break
     client_socket.close()
 
-# Lo que sucede cuando un botón es presionado
 board = [None] * 9  # None indica que ese botón no ha sido presionado
 
-# Combinaciones ganadoras
+    # Combinaciones ganadoras
 winning_combinations = [
     [0, 1, 2],  # Fila 1
     [3, 4, 5],  # Fila 2
@@ -63,34 +63,48 @@ winning_combinations = [
     [2, 4, 6]   # Diagonal secundaria
 ]
 
+
 # Función para verificar si hay un ganador
 def check_winner():
+
     for combination in winning_combinations:
         a, b, c = combination
         if board[a] == board[b] == board[c] and board[a] is not None:
             return board[a]  # Devuelve "X" o "O", dependiendo del ganador
     return None  # No hay ganador aún
 
+# Variable global para verificar si hay un ganador
+game_over = False
+
+# Función para ganar
+def win():
+    global game_over
+    game_over = True  # Marcar que el juego ha terminado
+    for button in buttons:
+        button.configure(state="disabled")  # Desactivar todos los botones
+    print(f"¡El jugador {client_id} ha ganado!")
+
 # Actualizar el estado del tablero cuando un botón es presionado
 def button_callback(i):
-    global board
-    print(f"botón {i} presionado")
-    
-    if client_id == 1:
-        buttons[i-1].configure(text="X", state="disabled", fg_color="red")  # Jugador 1 usa "X"
-        board[i-1] = "X"
-    elif client_id == 2:
-        buttons[i-1].configure(text="O", state="disabled", fg_color="blue")  # Jugador 2 usa "O"
-        board[i-1] = "O"
-    
-    # Enviar el movimiento al servidor
-    send_message(f"{i},{client_id}")
-    
-    # Comprobar si hay un ganador después del movimiento
-    winner = check_winner()
-    if winner:
-        print(f"¡El jugador {winner} ha ganado!")
-        # Puedes agregar lógica para finalizar el juego o reiniciar    
+    global board, game_over
+    print(f"Botón {i} presionado")
+    print(game_over)
+
+    if not game_over and board[i-1] is None:  # Solo permitir si no hay ganador
+        if client_id == 1:
+            buttons[i-1].configure(text="X", state="disabled", fg_color="red")  # Jugador 1 usa "X"
+            board[i-1] = "X"
+        elif client_id == 2:
+            buttons[i-1].configure(text="O", state="disabled", fg_color="blue")  # Jugador 2 usa "O"
+            board[i-1] = "O"
+        
+        # Enviar el movimiento al servidor
+        send_message(f"{i},{client_id}")
+
+        # Comprobar si hay un ganador después del movimiento
+        winner = check_winner()
+        if winner:
+            win()  # Llama a la función para manejar el ganador
 
 # Crear botones
 for i in range(9):

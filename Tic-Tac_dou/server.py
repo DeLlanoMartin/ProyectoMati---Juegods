@@ -1,113 +1,106 @@
 import socket
 import threading
 
-class Game:
-    def __init__(self):
-        self.board = [None] * 9
-        self.turn = 1
-        self.game_over = False
-        self.clients = {}  # Almacena los sockets de los jugadores (máximo 2)
-        self.winning_combinations = [
-            [0, 1, 2], [3, 4, 5], [6, 7, 8],
-            [0, 3, 6], [1, 4, 7], [2, 5, 8],
-            [0, 4, 8], [2, 4, 6]
-        ]
+clients = {}
+connection_order = []
+turn = 1  # Control de turnos, empieza con el jugador 1
+game_over = False  # Variable para saber si el juego ha terminado
+board = [None] * 9  # Estado del tablero
 
-    def check_winner(self):
-        # Verifica si alguien ganó
-        for combination in self.winning_combinations:
-            a, b, c = combination
-            if self.board[a] == self.board[b] == self.board[c] and self.board[a] is not None:
-                return 1 if self.board[a] == "X" else 2
-        return None
+# Combinaciones ganadoras
+winning_combinations = [
+    [0, 1, 2],  # Fila 1
+    [3, 4, 5],  # Fila 2
+    [6, 7, 8],  # Fila 3
+    [0, 3, 6],  # Columna 1
+    [1, 4, 7],  # Columna 2
+    [2, 5, 8],  # Columna 3
+    [0, 4, 8],  # Diagonal principal
+    [2, 4, 6]   # Diagonal secundaria
+]
 
-    def handle_client(self, client_socket, client_id):
-        print("se ejecuta handle_client")
-        while not self.game_over:
-            print("se ejecuta el while")
-            try:
-                print("se ejecuta el try")
-                # Espera a recibir datos del cliente
-                data = client_socket.recv(1024)
-                if not data or self.game_over:
-                    break
+def handle_client(client_socket, client_id):
+    global turn, game_over  # Hacer que turn y game_over sean accesibles aquí
 
-                # Procesa los datos recibidos
-                button_index, player_turn = map(int, data.decode().split(','))
-                print("recibe los datos")
-                if player_turn != self.turn:
-                    continue  # Si no es su turno, ignora el movimiento
-
-                print("actualiza el tablero")
-
-                # Actualiza el tablero con el movimiento
-                self.board[button_index - 1] = "X" if player_turn == 1 else "O"
-
-                print("antes de reenviar el movimiento")
-
-                # Reenvía el movimiento a todos los clientes
-                for cid, c in self.clients.items():
-                    c.send(data)  # Envía el movimiento
-                
-                print("después de haber enviado el movimiento")
-
-                # Verifica si hay un ganador
-                winner = self.check_winner()
-                if winner:
-                    self.notify_winner(winner)
-                    break
-
-                # Cambia el turno
-                self.turn = 1 if self.turn == 2 else 2
-
-            except ConnectionResetError:
-                print(f"Cliente {client_id} desconectado inesperadamente.")
-                self.clients.pop(client_id, None)
+    while True:
+        try:
+            data = client_socket.recv(1024)
+            if not data:
                 break
 
-        client_socket.close()
+            if game_over:  # Si el juego ha terminado, no permitir más acciones
+                continue
 
-    def notify_winner(self, winner_id):
-        self.game_over = True
-        message = f"winner,{winner_id}"
-        for cid, c in self.clients.items():
-            c.send(message.encode())
+            # Asegurarse de que es el turno correcto
+            player_turn = int(data.decode().split(',')[1])
+            if player_turn != turn:
+                continue  # Si no es el turno, ignorar
 
-class Server:
-    def __init__(self, host, port):
-        self.host = host
-        self.port = port
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.games = {}  # Almacena las instancias de los juegos
-        self.current_game_id = 1
 
-    def start(self):
-        self.server_socket.bind((self.host, self.port))
-        self.server_socket.listen()
-        print("Servidor esperando conexiones...")
+            print(f"Mensaje recibido del cliente {client_id}: {data.decode()}")
 
-        while True:
-            client_socket, client_address = self.server_socket.accept()
-            print("Cliente conectado desde:", client_address)
+            # Procesar el movimiento
+            button_index = int(data.decode().split(',')[0]) - 1
+            board[button_index] = "X" if player_turn == 1 else "O"
 
-            # Crea una nueva sala cada vez que hay 2 clientes en una sala existente
-            if self.current_game_id not in self.games or len(self.games[self.current_game_id].clients) >= 2:
-                self.games[self.current_game_id] = Game()
-                self.current_game_id += 1
 
-            # Obtiene el juego actual y asigna el cliente
-            game = self.games[self.current_game_id - 1]
-            client_id = len(game.clients) + 1
-            game.clients[client_id] = client_socket
+            # Reenviar el mensaje a todos los clientes conectados
+            for cid, c in clients.items():
+                c.send(data)  # Envía el movimiento y el cliente que lo hizo
 
-            # Envia el id del cliente
-            client_socket.send(str(client_id).encode())
+            # Verificar si hay un ganador
+            winner = check_winner()
+            if winner:
+                notify_winner(winner)  # Notificar al ganador
+                break  # Salir del bucle si hay un ganador
 
-            # Inicia un hilo para manejar al cliente dentro de su instancia de juego
-            threading.Thread(target=game.handle_client, args=(client_socket, client_id)).start()
+            # Cambiar el turno
+            turn = 1 if turn == 2 else 2
 
-# Configuración del servidor
+        except ConnectionResetError:
+            print(f"Cliente {client_id} cerró la conexión inesperadamente.")
+            clients.pop(client_id, None)
+            break
+
+# Función para manejar el fin del juego
+def notify_winner(winner_id):
+    global game_over
+    game_over = True  # Marcar que el juego ha terminado
+    message = f"winner,{winner_id}"  # Crear mensaje para enviar
+    for cid, c in clients.items():
+        c.send(message.encode())  # Notificar a todos los clientes sobre el ganador
+
+# Función para verificar si hay un ganador
+def check_winner():
+    for combination in winning_combinations:
+        a, b, c = combination
+        if board[a] == board[b] == board[c] and board[a] is not None:
+            return 1 if board[a] == "X" else 2  # Devuelve 1 o 2, dependiendo del ganador
+    return None  # No hay ganador aún
+
+# Crear un socket TCP/IP
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 host = socket.gethostname()
 port = 12345
-server = Server(host, port)
-server.start()
+server_socket.bind((host, port))
+server_socket.listen()
+
+print("Esperando conexiones entrantes...")
+
+client_id_counter = 1
+
+while True:
+    client_socket, client_address = server_socket.accept()
+    print("Cliente conectado desde:", client_address)
+
+    if len(clients) >= 2:
+        print("Máximo de clientes alcanzado. Desconectando al nuevo cliente.")
+        message = ("Servidor: No se permiten más de 2 clientes. Conexión cerrada.")
+        client_socket.send(message.encode())
+        client_socket.close()
+        continue
+
+    clients[client_id_counter] = client_socket
+    client_socket.send(str(client_id_counter).encode())  # Enviar el ID al cliente
+    threading.Thread(target=handle_client, args=(client_socket, client_id_counter)).start()
+    client_id_counter += 1

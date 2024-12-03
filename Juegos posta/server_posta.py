@@ -9,6 +9,8 @@ class GameServer:
         self.games = {}  # Diccionario para gestionar partidas {client_pair: game_instance}
 
     def handle_client(self, client, address):
+        client_id = len(self.clients)
+        client.sendall(f"ID:{client_id}".encode())
         print(f"Cliente conectado desde {address}")
         try:
             while True:
@@ -81,17 +83,12 @@ class Game1:
     def __init__(self, client_pair, server):
         self.client_pair = client_pair  # Par de clientes en la partida
         self.server = server  # Referencia al servidor
-        self.state = {"player_turn": 0, "board": []}  # Estado inicial del juego
+        self.turn = 1 # Estado inicial del juego
 
     def process_action(self, client, data):
         if data.startswith("MOVE"):
             _, move = data.split(":")
-            self.state["board"].append(move)
-            self.state["player_turn"] = (self.state["player_turn"] + 1) % 2
 
-            # Enviar actualizaciones a ambos jugadores
-            for c in self.client_pair:
-                c.sendall(f"UPDATE:{self.state}".encode())
 
         elif data == "END_GAME":
             for c in self.client_pair:

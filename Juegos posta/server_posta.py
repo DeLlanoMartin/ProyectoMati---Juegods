@@ -25,7 +25,7 @@ class GameServer:
                     self.assign_game(client, game_name)
 
                 else:
-                    self.handle_game_action(client, data)
+                    self.handle_game_action(client, data, client_id)
         except Exception as e:
             print(f"Error con el cliente {address}: {e}")
             self.remove_client(client)
@@ -44,12 +44,13 @@ class GameServer:
         if len(self.clients) < 2:
             client.sendall("WAITING_FOR_PLAYER".encode())
             return
-
+        
         # Encontrar el otro cliente conectado
         other_client = [c for c in self.clients if c != client][0]
-
+        
         # Crear una nueva partida y asignarla a ambos clientes
         client_pair = (client, other_client)
+
         if game_name == "Game1":
             self.games[client_pair] = Game1(client_pair, self)
         elif game_name == "Game2":
@@ -57,15 +58,14 @@ class GameServer:
         elif game_name == "Game3":
             self.games[client_pair] = Game3(client_pair, self)
 
-        # Informar a ambos clientes que el juego comienza
-        for c in client_pair:
-            c.sendall(f"START_GAME:{game_name}".encode())
 
-    def handle_game_action(self, client, data):
+
+
+    def handle_game_action(self, client, data, client_id):
         # Buscar la partida activa del cliente
         for client_pair, game in self.games.items():
             if client in client_pair:
-                game.process_action(client, data)
+                game.process_action(client, data, client_id)
                 break
 
     def start(self):
@@ -85,15 +85,29 @@ class Game1:
         self.server = server  # Referencia al servidor
         self.turn = 1 # Estado inicial del juego
 
-    def process_action(self, client, data):
+    def process_action(self, client, data, client_id):
         if data.startswith("MOVE"):
-            _, move = data.split(":")
 
+            move = int(data.split(":")[1])
+            for client in self.client_pair:
+                print("move: ", move)
+                client.sendall(f"MOVE:{move}:{client_id}".encode())
 
+            if self.turn == 1:
+                self.turn =2
+            elif self.turn == 2:
+                self.turn =1
+
+            for c in self.client_pair:
+                c.sendall(f"TURN:{self.turn}".encode())
+                print(f"turno enviado: {self.turn} ")
+
+            # Cambiar el turno después de una jugada
         elif data == "END_GAME":
             for c in self.client_pair:
                 c.sendall("GAME_OVER".encode())
 
+        
 
 # Clase Juego 2
 class Game2:

@@ -11,6 +11,7 @@ class GameClient:
         self.client_gui = GameClientGUI(self)
         self.current_game = None
         self.client_id = None
+        self.turn = 1
 
     def connect_to_server(self):
         """Conectar al servidor."""
@@ -37,6 +38,15 @@ class GameClient:
                 if message.startswith("ID:"):
                     self.client_id = message.split(":")[1]
                     print(f"Tu ID es: {self.client_id}")
+                if message.startswith("TURN:"):
+                    new_turn = int(message.split(":")[1])
+                    self.turn = new_turn
+                    print(f"Turno actualizado: {self.turn}")
+                if message.startswith("MOVE"):
+                    print(message)
+                    _, move, player_id = message.split(":")
+                    self.current_game.process_action(int(move), int(player_id))
+    
         except Exception as e:
             print(f"Error al escuchar el servidor: {e}")
 
@@ -55,42 +65,38 @@ class GameClient:
 
 # Clase para el Juego 1
 class Game1Client(ctk.CTkFrame):
-    def __init__(self, master, socket, client_id):
+    def __init__(self, master, client, socket):
         super().__init__(master)
         self.master = master
+        self.client = client  # Instancia completa de GameClient
         self.socket = socket
-        self.client_id = int(client_id)
+        self.turn = self.client.turn  # Ahora puedes usar el atributo `turn` directamente
+        self.client_id = int(self.client.client_id)
 
-        # Título del juego
-        ctk.CTkLabel(self, text=self.client_id, font=("Arial", 20)).pack(pady=20)
+        # Mostrar el ID del cliente como ejemplo
+        ctk.CTkLabel(self, text=f"Tu ID: {self.client_id}", font=("Arial", 20)).pack(pady=20)
 
         # Crear un subframe para la grilla
         self.grid_frame = ctk.CTkFrame(self)
         self.grid_frame.pack(pady=10)
 
-        # Lista para almacenar los botones de la grilla
-        self.buttons = []
-
-        self.turn = 1
-
+        self.buttons = []  # Lista para almacenar los botones de la grilla
         self.board = [None] * 9  # None indica que ese botón no ha sido presionado
 
         # Combinaciones ganadoras
         self.winning_combinations = [
-            [0, 1, 2],  # Fila 1
-            [3, 4, 5],  # Fila 2
-            [6, 7, 8],  # Fila 3
-            [0, 3, 6],  # Columna 1
-            [1, 4, 7],  # Columna 2
-            [2, 5, 8],  # Columna 3
-            [0, 4, 8],  # Diagonal principal
-            [2, 4, 6]   # Diagonal secundaria
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],  # Filas
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],  # Columnas
+            [0, 4, 8], [2, 4, 6]              # Diagonales
         ]
 
         # Crear la grilla de botones
         self.crear_botones()
 
-        # Botón para salir al menú principal
+        # Informar al servidor que este cliente seleccionó el juego
+        self.socket.sendall("GAME_SELECTION:Game1".encode())
+
+        # Botón para volver al menú principal
         ctk.CTkButton(self, text="Volver al Menú", command=master.show_menu).pack(pady=20)
 
     def crear_botones(self):
@@ -99,7 +105,7 @@ class Game1Client(ctk.CTkFrame):
             button = ctk.CTkButton(
                 self.grid_frame,  # Usamos el subframe para colocar la grilla
                 text="", 
-                command=lambda i=i: self.process_action(f"Button: {i}"),  # Identificador único
+                command=lambda i=i: self.update_game(i),  # Identificador único
                 height=100, 
                 width=100
             )
@@ -112,29 +118,32 @@ class Game1Client(ctk.CTkFrame):
             )
             self.buttons.append(button)  # Agregar el botón a la lista
 
-    def process_action(self, action):
+    def process_action(self, index, player):
         """Procesar las acciones del Juego 1."""
-        print(self.turn)
-        if (self.turn != self.client_id):
-            print("No es tu turno.")  # Mensaje de depuración
+        print(f"Botón presionado: {index +1}")  # Mensaje en la consola para pruebas
+        print(f"jugador que lo presionó: {player}")
+
+        if self.board[index] is None:  # Si el botón no ha sido presionado
+            # Actualizar visualización del botón
+            self.board[index] = "X" if player == 1 else "O"
+            self.buttons[index].configure(
+                text=self.board[index], 
+                state="disabled", 
+                fg_color="red" if player == 1 else "blue", 
+                font=("Arial", 30)
+                )
+            # Enviar acción al servidor
+
+    def update_game(self, action):
+        if self.client.turn != self.client_id:
+            print(f"No es tu turno")
+            print(f"turno:     {self.client.turn} es {type(self.client.turn)}")
+            print(f"client_id: {self.client_id} es {type(self.client_id)}")
             return
-        print(f"Acción del botón: {action}")  # Mensaje en la consola para pruebas
-
-        if action.startswith("Button:"):
-            action = int(action.split(":")[1])
-
-            if self.board[action] is None:  # Si el botón no ha sido presionado
-                # Actualizar visualización del botón
-                self.board[action] = "X" if self.client_id == "1" else "O"
-                self.buttons[action].configure(text=self.board[action], state="disabled", fg_color="red", font=("Arial", 30))
-
-                # Enviar acción al servidor
-                try:
-                    print(self.turn)
-                    self.socket.sendall(f"MOVE:{action}".encode())
-                    self.turn = 1 if self.turn==2 else 2
-                except Exception as e:
-                    print(f"Error al enviar el movimiento: {e}")
+        try:                                                                                
+            self.socket.sendall(f"MOVE:{action}".encode())
+        except Exception as e:
+            print(f"Error al enviar el movimiento: {e}")
 
 
 
@@ -196,7 +205,6 @@ class Game2Client(ctk.CTkFrame):
                 )
     def process_action(self, action):
         print(action)
-
 
 
 # Clase para el Juego 3
@@ -266,7 +274,7 @@ class GameClientGUI(ctk.CTk):
     def select_game1(self):
         """Selecciona Juego 1."""
         self.geometry("500x500")
-        self.client.current_game = Game1Client(self, self.client.socket, self.client.client_id)
+        self.client.current_game = Game1Client(self, self.client, self.client.socket)
         self.switch_to_game(self.client.current_game)
 
     def select_game2(self):

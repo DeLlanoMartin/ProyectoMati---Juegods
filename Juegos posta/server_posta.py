@@ -58,9 +58,6 @@ class GameServer:
         elif game_name == "Game3":
             self.games[client_pair] = Game3(client_pair, self)
 
-
-
-
     def handle_game_action(self, client, data, client_id):
         # Buscar la partida activa del cliente
         for client_pair, game in self.games.items():
@@ -84,30 +81,60 @@ class Game1:
         self.client_pair = client_pair  # Par de clientes en la partida
         self.server = server  # Referencia al servidor
         self.turn = 1 # Estado inicial del juego
+        self.winner = None
+
+        self.winning_combinations = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],  # Filas
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],  # Columnas
+            [0, 4, 8], [2, 4, 6]              # Diagonales
+        ]
+
+        self.board = [None] * 9  # None indica que ese botón no ha sido presionado
+
+    def check_winner(self):
+        for combination in self.winning_combinations:
+            a, b, c = combination
+            if self.board[a] == self.board[b] == self.board[c] and self.board[a] is not None:
+                return self.board[a]  # Devuelve "X" o "O", dependiendo del ganador
+        return None  # No hay ganador aún
 
     def process_action(self, client, data, client_id):
         if data.startswith("MOVE"):
 
             move = int(data.split(":")[1])
+
+            self.board[move] = "X" if int(client_id) == 1 else "O"
+
+            winner = self.check_winner()
+
+            if winner:
+                for client in self.client_pair:
+                    client.sendall(f"WINNER:{client_id}".encode())
+            
+            elif winner=="O":
+                for client in self.client_pair:
+                    client.sendall(f"WINNER:2".encode())
+            
+            
             for client in self.client_pair:
-                print("move: ", move)
                 client.sendall(f"MOVE:{move}:{client_id}".encode())
+            
+            if not winner:
+                if self.turn == 1:
+                    self.turn =2
+                elif self.turn == 2:
+                    self.turn =1
 
-            if self.turn == 1:
-                self.turn =2
-            elif self.turn == 2:
-                self.turn =1
-
-            for c in self.client_pair:
-                c.sendall(f"TURN:{self.turn}".encode())
-                print(f"turno enviado: {self.turn} ")
+                for c in self.client_pair:
+                    c.sendall(f"TURN:{self.turn}".encode())
+                    print(f"turno enviado: {self.turn} ")
 
             # Cambiar el turno después de una jugada
         elif data == "END_GAME":
             for c in self.client_pair:
                 c.sendall("GAME_OVER".encode())
-
-        
+                self.winner= None
+      
 
 # Clase Juego 2
 class Game2:

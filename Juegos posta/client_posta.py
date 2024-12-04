@@ -12,6 +12,7 @@ class GameClient:
         self.current_game = None
         self.client_id = None
         self.turn = 1
+        self.winner = None
 
     def connect_to_server(self):
         """Conectar al servidor."""
@@ -27,26 +28,27 @@ class GameClient:
         try:
             while True:
                 message = self.socket.recv(1024).decode()
+                print(f"mensaje: {message}")
                 if not message:
                     break
-                print(message)
-                if not self.client_gui:
+                elif not self.client_gui:
                     print("self.client_gui no está inicializado.")
-                self.client_gui.display_message(message)
                 if message == "GAME_OVER":
                     self.client_gui.enable_menu()  # Habilitar el menú después del fin del juego
-                if message.startswith("ID:"):
-                    self.client_id = message.split(":")[1]
-                    print(f"Tu ID es: {self.client_id}")
-                if message.startswith("TURN:"):
-                    new_turn = int(message.split(":")[1])
-                    self.turn = new_turn
-                    print(f"Turno actualizado: {self.turn}")
-                if message.startswith("MOVE"):
+                elif message.startswith("ID:"):
                     print(message)
+                    self.client_id = message.split(":")[1]
+                elif message.startswith("TURN:"):
+                    self.turn = int(message.split(":")[1])
+                elif message.startswith("WINNER"):
+                    print("se recibe mensaje de ganador")
+                    self.winner = message.split(":")[1]
+                    print(f"Ganador: {self.winner}")
+                elif message.startswith("MOVE"):
                     _, move, player_id = message.split(":")
                     self.current_game.process_action(int(move), int(player_id))
-    
+                
+
         except Exception as e:
             print(f"Error al escuchar el servidor: {e}")
 
@@ -70,8 +72,8 @@ class Game1Client(ctk.CTkFrame):
         self.master = master
         self.client = client  # Instancia completa de GameClient
         self.socket = socket
-        self.turn = self.client.turn  # Ahora puedes usar el atributo `turn` directamente
         self.client_id = int(self.client.client_id)
+        self.winner = None
 
         # Mostrar el ID del cliente como ejemplo
         ctk.CTkLabel(self, text=f"Tu ID: {self.client_id}", font=("Arial", 20)).pack(pady=20)
@@ -82,14 +84,7 @@ class Game1Client(ctk.CTkFrame):
 
         self.buttons = []  # Lista para almacenar los botones de la grilla
         self.board = [None] * 9  # None indica que ese botón no ha sido presionado
-
-        # Combinaciones ganadoras
-        self.winning_combinations = [
-            [0, 1, 2], [3, 4, 5], [6, 7, 8],  # Filas
-            [0, 3, 6], [1, 4, 7], [2, 5, 8],  # Columnas
-            [0, 4, 8], [2, 4, 6]              # Diagonales
-        ]
-
+        
         # Crear la grilla de botones
         self.crear_botones()
 
@@ -98,6 +93,23 @@ class Game1Client(ctk.CTkFrame):
 
         # Botón para volver al menú principal
         ctk.CTkButton(self, text="Volver al Menú", command=master.show_menu).pack(pady=20)
+
+    def show_winner_label(self, winner):
+        """Mostrar un Label en el centro de la pantalla como una barra horizontal al ganar."""
+        winner_text = f"¡Jugador {winner} ha ganado!"
+        self.winner_label = ctk.CTkLabel(
+            self,
+            text=winner_text,
+            font=("Arial", 24, "bold"),  # Texto en negrita
+            fg_color="#FF69B4",         # Color melón
+            text_color="white",         # Texto blanco
+            corner_radius=10,           # Bordes redondeados
+            width=self.winfo_width(),   # Ancho del Label igual al de la pantalla
+            height=50                   # Altura de la barra
+        )
+        # Posicionar el Label como una barra horizontal en el medio
+        self.winner_label.place(relx=0.5, rely=0.5, anchor="center")
+
 
     def crear_botones(self):
         """Crear una grilla de botones dentro del subframe."""
@@ -119,10 +131,7 @@ class Game1Client(ctk.CTkFrame):
             self.buttons.append(button)  # Agregar el botón a la lista
 
     def process_action(self, index, player):
-        """Procesar las acciones del Juego 1."""
-        print(f"Botón presionado: {index +1}")  # Mensaje en la consola para pruebas
-        print(f"jugador que lo presionó: {player}")
-
+        print("entra a process action")
         if self.board[index] is None:  # Si el botón no ha sido presionado
             # Actualizar visualización del botón
             self.board[index] = "X" if player == 1 else "O"
@@ -132,19 +141,22 @@ class Game1Client(ctk.CTkFrame):
                 fg_color="red" if player == 1 else "blue", 
                 font=("Arial", 30)
                 )
-            # Enviar acción al servidor
+
+        if self.client.winner != None:
+            self.show_winner_label(self.client.winner)
+            for button in self.buttons:
+                print(f"Deshabilitando botón: {button}")
+                button.configure(state="disabled")
+            ctk.CTkLabel(self, text=f"Tu ID: {self.client_id}", font=("Arial", 20)).pack(pady=20)
 
     def update_game(self, action):
+        print("se presiona un botón")
         if self.client.turn != self.client_id:
-            print(f"No es tu turno")
-            print(f"turno:     {self.client.turn} es {type(self.client.turn)}")
-            print(f"client_id: {self.client_id} es {type(self.client_id)}")
             return
         try:                                                                                
             self.socket.sendall(f"MOVE:{action}".encode())
         except Exception as e:
             print(f"Error al enviar el movimiento: {e}")
-
 
 
 # Clase para el Juego 2
@@ -267,15 +279,18 @@ class GameClientGUI(ctk.CTk):
         """Volver al menú principal."""
         self.geometry("400x300")
         if self.client.current_game:
-            self.client.current_game.destroy()
+            self.client.current_game.destroy()  # Destruir el frame actual del juego
             self.client.current_game = None
         self.menu_frame.pack(fill="both", expand=True)
 
     def select_game1(self):
         """Selecciona Juego 1."""
         self.geometry("500x500")
-        self.client.current_game = Game1Client(self, self.client, self.client.socket)
+        self.client.turn = 1  # Reinicia el turno global
+        self.client.winner = None  # Reinicia el ganador
+        self.client.current_game = Game1Client(self, self.client, self.client.socket)  # Nueva instancia
         self.switch_to_game(self.client.current_game)
+
 
     def select_game2(self):
         """Selecciona Juego 2."""
@@ -292,10 +307,6 @@ class GameClientGUI(ctk.CTk):
         """Cambia al frame del juego seleccionado."""
         self.menu_frame.pack_forget()
         game_frame.pack(fill="both", expand=True)
-
-    def display_message(self, message):
-        """Mostrar mensajes recibidos del servidor."""
-        print(f"Mensaje del servidor: {message}")
 
     def exit_client(self):
         """Salir del cliente."""

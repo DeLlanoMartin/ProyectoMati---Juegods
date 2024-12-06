@@ -51,6 +51,7 @@ class GameClient:
 
         except Exception as e:
             print(f"Error al escuchar el servidor: {e}")
+            print(f"mensaje intentado: {message}") 
 
     def send_message(self, message):
         """Enviar un mensaje al servidor."""
@@ -130,8 +131,9 @@ class Game1Client(ctk.CTkFrame):
             )
             self.buttons.append(button)  # Agregar el botón a la lista
 
-    def process_action(self, index, player):
+    def process_action(self, move, player):
         print("entra a process action")
+        index = int(move)
         if self.board[index] is None:  # Si el botón no ha sido presionado
             # Actualizar visualización del botón
             self.board[index] = "X" if player == 1 else "O"
@@ -150,7 +152,7 @@ class Game1Client(ctk.CTkFrame):
             ctk.CTkLabel(self, text=f"Tu ID: {self.client_id}", font=("Arial", 20)).pack(pady=20)
 
     def update_game(self, action):
-        print("se presiona un botón")
+        print(f"se presiona el botón: {action}")
         if self.client.turn != self.client_id:
             return
         try:                                                                                
@@ -158,41 +160,75 @@ class Game1Client(ctk.CTkFrame):
         except Exception as e:
             print(f"Error al enviar el movimiento: {e}")
 
-
 # Clase para el Juego 2
 class Game2Client(ctk.CTkFrame):
-    def __init__(self, master, socket, client_id):
+    def __init__(self, master, client, socket):
         super().__init__(master)
         self.master = master
+        self.client = client  # Instancia completa de GameClient
         self.socket = socket
-        self.client_id = int(client_id)
+        self.client_id = int(self.client.client_id)
+        self.winner = None
 
-        # Título del juego
-        ctk.CTkLabel(self, text=self.client_id, font=("Arial", 20))
+        # Array de arrays para guardar la grilla visual
+        self.etiquetas = [[None for _ in range(7)] for _ in range(6)]
+        
+        # Array de arrays para guardar la grilla de botones
+        self.board = [[0 for _ in range(7)] for _ in range(6)] 
+        
+        # Mostrar el ID del cliente como ejemplo
+        ctk.CTkLabel(self, text=f"Tu ID: {self.client_id}", font=("Arial", 20)).pack(pady=20)
 
         # Crear un subframe para la grilla
         self.grid_frame = ctk.CTkFrame(self)
-
-        self.turn = 1
-
-        self.etiquetas = []
-
-        self.tablero = [[0 for _ in range(7)] for _ in range(6)]
-
+        self.grid_frame.pack(pady=10)
+        
         # Crear la grilla de botones
         self.crear_botones()
 
-        # Botón para salir al menú principal
-        ctk.CTkButton(self, text="Volver al Menú", command=master.show_menu).grid(row=7+1, column=0, columnspan=7, pady=10)
+        # Informar al servidor que este cliente seleccionó el juego
+        self.socket.sendall("GAME_SELECTION:Game2".encode())
 
+        # Botón para volver al menú principal
+        ctk.CTkButton(self, text="Volver al Menú", command=master.show_menu).pack(pady=20)
+
+    def show_winner_label(self, winner):
+        """Mostrar un Label en el centro de la pantalla como una barra horizontal al ganar."""
+        winner_text = f"¡Jugador {winner} ha ganado!"
+        self.winner_label = ctk.CTkLabel(
+            self,
+            text=winner_text,
+            font=("Arial", 24, "bold"),  # Texto en negrita
+            fg_color="#FF69B4",         # Color melón
+            text_color="white",         # Texto blanco
+            corner_radius=10,           # Bordes redondeados
+            width=self.winfo_width(),   # Ancho del Label igual al de la pantalla
+            height=50                   # Altura de la barra
+        )
+        # Posicionar el Label como una barra horizontal en el medio
+        self.winner_label.place(relx=0.5, rely=0.5, anchor="center")
 
     def crear_botones(self):
-        self.etiquetas = [[None for _ in range(7)] for _ in range(6)]
+        """Crear una grilla de botones dentro del subframe."""
+        for columna in range(7):
+            boton = ctk.CTkButton(
+                self.grid_frame,  # Cambiado a self.grid_frame
+                text=str(columna + 1), 
+                command=lambda c=columna: self.update_game(c),
+                height=40, 
+                width=50
+            )
+            boton.grid(
+                row=6,  # Fila para los botones (debajo de la grilla)
+                column=columna, 
+                padx=2, 
+                pady=2
+            )
         for fila in range(6):
             for columna in range(7):
                 # Crear cada etiqueta con más redondez
                 etiqueta = ctk.CTkLabel(
-                    self,
+                    self.grid_frame,  # Cambiado a self.grid_frame
                     text="",
                     width=50,              # Ancho de cada celda
                     height=50,             # Alto de cada celda
@@ -201,22 +237,36 @@ class Game2Client(ctk.CTkFrame):
                 )
                 etiqueta.grid(row=fila, column=columna, padx=3, pady=3)  # Aumenté el espacio entre celdas
                 self.etiquetas[fila][columna] = etiqueta
-        for columna in range(7):
-            boton = ctk.CTkButton(
-                self, 
-                text=str(columna + 1), 
-                command=lambda c=columna: self.process_action(c+1), 
-                height=40, 
-                width=50
-                )
-            boton.grid(
-                row=6 + 1, 
-                column=columna, 
-                padx=2, 
-                pady=2
-                )
-    def process_action(self, action):
-        print(action)
+
+    def process_action(self, move, player):
+        for fila in range(5, -1, -1):
+            if self.board[fila][move] == 0:
+                self.board[fila][move] = player  # Asignar el movimiento del jugador
+                break
+
+        colores = {0: "white", 1: "red", 2: "#98FB98"}
+        for fila in range(6):
+            for columna in range(7):
+                etiqueta = self.etiquetas[fila][columna]  # Asegúrate de acceder a cada etiqueta
+                etiqueta.configure(fg_color=colores[self.board[fila][columna]])               
+        print("color actualizado")
+
+        if self.client.winner:
+            self.show_winner_label(self.client.winner)
+            for fila in self.etiquetas:
+                for etiqueta in fila:  # Recorrer cada etiqueta individualmente
+                    etiqueta.configure(state="disabled")
+
+
+    def update_game(self, action):
+        if self.client.turn != self.client_id:
+            return
+        
+        try:
+            self.socket.sendall(f"MOVE:{action}".encode())
+        except Exception as e:
+            print(f"Error al enviar el movimiento: {e}")
+
 
 
 # Clase para el Juego 3
@@ -294,8 +344,10 @@ class GameClientGUI(ctk.CTk):
 
     def select_game2(self):
         """Selecciona Juego 2."""
-        self.geometry("405x475")
-        self.client.current_game = Game2Client(self, self.client.socket, self.client.client_id)
+        self.geometry("405x525")
+        self.client.turn = 1  # Reinicia el turno global
+        self.client.winner = None  # Reinicia el ganador
+        self.client.current_game = Game2Client(self, self.client, self.client.socket)
         self.switch_to_game(self.client.current_game)
 
     def select_game3(self):

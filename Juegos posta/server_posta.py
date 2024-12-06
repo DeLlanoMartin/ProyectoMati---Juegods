@@ -100,21 +100,13 @@ class Game1:
 
     def process_action(self, client, data, client_id):
         if data.startswith("MOVE"):
-
             move = int(data.split(":")[1])
-
             self.board[move] = "X" if int(client_id) == 1 else "O"
-
             winner = self.check_winner()
 
             if winner:
                 for client in self.client_pair:
                     client.sendall(f"WINNER:{client_id}".encode())
-            
-            elif winner=="O":
-                for client in self.client_pair:
-                    client.sendall(f"WINNER:2".encode())
-            
             
             for client in self.client_pair:
                 client.sendall(f"MOVE:{move}:{client_id}".encode())
@@ -134,28 +126,77 @@ class Game1:
             for c in self.client_pair:
                 c.sendall("GAME_OVER".encode())
                 self.winner= None
-      
+
 
 # Clase Juego 2
 class Game2:
     def __init__(self, client_pair, server):
         self.client_pair = client_pair  # Par de clientes en la partida
         self.server = server  # Referencia al servidor
-        self.state = {"player_turn": 0, "board": []}  # Estado inicial del juego
+        self.board = [[0 for _ in range(7)] for _ in range(6)]
+        self.turn = 1
+        self.winner = None
+        print(self.winner)
 
-    def process_action(self, client, data):
+    def check_winner(self):
+    # Verificar horizontal, vertical y diagonal
+        print(self.board)
+        for fila in range(6):
+            for columna in range(7):
+                jugador = self.board[fila][columna]
+                if jugador == 0:
+                    continue  # Saltar celdas vacías
+
+                # Horizontal
+                if columna + 3 < 7 and all(self.board[fila][columna + i] == jugador for i in range(4)):
+                    return jugador
+
+                # Vertical
+                if fila + 3 < 6 and all(self.board[fila + i][columna] == jugador for i in range(4)):
+                    return jugador
+
+                # Diagonal derecha
+                if fila + 3 < 6 and columna + 3 < 7 and all(self.board[fila + i][columna + i] == jugador for i in range(4)):
+                    return jugador
+
+                # Diagonal izquierda
+                if fila + 3 < 6 and columna - 3 >= 0 and all(self.board[fila + i][columna - i] == jugador for i in range(4)):
+                    return jugador
+
+        return 0  # No hay ganador aún
+
+
+    def process_action(self, client, data, client_id):
         if data.startswith("MOVE"):
-            _, move = data.split(":")
-            self.state["board"].append(move)
-            self.state["player_turn"] = (self.state["player_turn"] + 1) % 2
 
-            # Enviar actualizaciones a ambos jugadores
-            for c in self.client_pair:
-                c.sendall(f"UPDATE:{self.state}".encode())
+            move = int(data.split(":")[1])
 
+            for fila in range(5, -1, -1):
+                if self.board[fila][move] == 0:
+                    self.board[fila][move] = client_id  # Asignar el movimiento del jugador
+                    break
+                    
+            self.winner = self.check_winner()
+
+            if self.winner:
+                for client in self.client_pair:
+                    client.sendall(f"WINNER:{client_id}".encode())
+            
+            for client in self.client_pair:
+                client.sendall(f"MOVE:{move}:{client_id}".encode())
+            
+            if not self.winner:
+                self.turn = 1 if self.turn == 2 else 2
+
+                for c in self.client_pair:
+                    c.sendall(f"TURN:{self.turn}".encode())
+                    print(f"turno enviado: {self.turn} ")
+
+            # Cambiar el turno después de una jugada
         elif data == "END_GAME":
             for c in self.client_pair:
                 c.sendall("GAME_OVER".encode())
+                self.winner= None
 
 
 # Clase Juego 2
@@ -163,23 +204,8 @@ class Game3:
     def __init__(self, client_pair, server):
         self.client_pair = client_pair  # Par de clientes en la partida
         self.server = server  # Referencia al servidor
-        self.state = {"player_turn": 0, "board": []}  # Estado inicial del juego
 
-    def process_action(self, client, data):
-        if data.startswith("MOVE"):
-            _, move = data.split(":")
-            self.state["board"].append(move)
-            self.state["player_turn"] = (self.state["player_turn"] + 1) % 2
-
-            # Enviar actualizaciones a ambos jugadores
-            for c in self.client_pair:
-                c.sendall(f"UPDATE:{self.state}".encode())
-
-        elif data == "END_GAME":
-            for c in self.client_pair:
-                c.sendall("GAME_OVER".encode())
-
-
+    
 if __name__ == "__main__":
     server = GameServer()
     server.start()

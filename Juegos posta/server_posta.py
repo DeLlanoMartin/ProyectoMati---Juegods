@@ -1,8 +1,9 @@
 import socket
 import threading
+import time
 
 class GameServer:
-    def __init__(self, host='127.0.0.1', port=5000):
+    def __init__(self, host=socket.gethostname(), port=5000):
         self.host = host
         self.port = port
         self.clients = []  # Lista de clientes conectados
@@ -23,7 +24,6 @@ class GameServer:
                 if data.startswith("GAME_SELECTION"):
                     _, game_name = data.split(":")
                     self.assign_game(client, game_name)
-
                 else:
                     self.handle_game_action(client, data, client_id)
         except Exception as e:
@@ -204,8 +204,74 @@ class Game3:
     def __init__(self, client_pair, server):
         self.client_pair = client_pair  # Par de clientes en la partida
         self.server = server  # Referencia al servidor
+        self.player_moves = {}  # Almacena los movimientos de los jugadores {player_id: move}
+        self.rules = {
+            "piedra": ["tijera", "lagarto"],
+            "papel": ["piedra", "spock"],
+            "tijera": ["papel", "lagarto"],
+            "lagarto": ["spock", "papel"],
+            "spock": ["piedra", "tijera"]
+        }
+        self.scores = {1: 0, 2: 0}  # Puntajes de los jugadores {player_id: score}
+        self.round = 1  # Contador de rondas
 
-    
+
+    def process_action(self, client, move, player_id,):
+        move = move.split(":")[1]
+
+        # Guardar el movimiento del jugador
+        self.player_moves[player_id] = move
+
+        # Verificar si ambos jugadores han enviado sus movimientos
+        if len(self.player_moves) == 2:
+            # Obtener los movimientos de ambos jugadores
+            int
+            players = list(self.player_moves.keys())
+            move1 = self.player_moves[players[0]]
+            move2 = self.player_moves[players[1]]
+
+            print(f"movimiento 1: {move1}")
+            print(f"movimiento 2: {move2}")
+
+            # Determinar el resultado
+            if move1 == move2:
+                result = 0
+            elif move2 in self.rules[move1]:
+                result = players[0]
+                self.scores[players[0]] += 1
+            else:
+                result = players[1]
+                self.scores[players[1]] += 1
+            print(f"resultado: {result}")
+
+            # Verificar si ya hay un ganador del mejor de 3
+            if self.scores[players[0]] == 2:
+                for c in self.client_pair:
+                    c.sendall(f"WINNER:{players[0]}".encode())
+                self.reset_game()
+            elif self.scores[players[1]] == 2:
+                for c in self.client_pair:
+                    c.sendall(f"WINNER:{players[1]}".encode())
+                self.reset_game()
+            else:
+                # Continuar a la siguiente ronda
+                if result!=0:
+                    self.round += 1
+                    self.player_moves.clear()
+                    print(self.scores)
+            for c in self.client_pair:
+                c.sendall(f"WIN_ROUND:{result}".encode())
+                time.sleep(0.1)
+                c.sendall(f"CHANGE_ROUND:{self.round}".encode())
+        else:
+            # Esperar el movimiento del otro jugador
+            print("Esperando el movimiento del otro jugador...")
+
+    def reset_game(self):
+        """Reiniciar el juego para comenzar otra partida."""
+        self.player_moves.clear()
+        self.scores = {1: 0, 2: 0}
+
 if __name__ == "__main__":
     server = GameServer()
     server.start()

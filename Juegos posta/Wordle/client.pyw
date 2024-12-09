@@ -6,7 +6,7 @@ class ClientApp(ctk.CTk):
     def __init__(self, host, port):
         super().__init__()
         self.title("Cliente de Adivina la Palabra")
-        self.geometry(f"400x250")
+        self.geometry(f"450x250")
         self.attempts = 0
         self.running = True
         
@@ -16,7 +16,6 @@ class ClientApp(ctk.CTk):
         
         self.client_id = None
         self.mysterious_word_length = 0
-        self.mysterious_word_state = ["_"]  # Estado inicial de la palabra misteriosa
         
         # Interfaz gráfica
         self.build_gui()
@@ -56,10 +55,10 @@ class ClientApp(ctk.CTk):
         """Procesa el intento del jugador y lo envía al servidor."""
         self.attempt = self.word_entry.get().strip().lower()
         if len(self.attempt) != self.mysterious_word_length:
-            self.result_text.configure(self, text= "El intento debe tener la misma cantidad de letras que la palabra misteriosa.\n")
+            self.result_text.configure(self, text= f"El intento debe tener la misma cantidad de letras que la palabra misteriosa.\n ({self.mysterious_word_length})")
             return
         elif not self.attempt.isalpha():
-            self.result_text.configure(self, text="No se permiten símbolos, sólo letras y números")
+            self.result_text.configure(self, text="No se permiten símbolos, sólo letras")
             return
         
         if self.attempts==10:
@@ -88,7 +87,6 @@ class ClientApp(ctk.CTk):
                 
                 elif message.startswith("WORD"):
                     self.mysterious_word_length = int(message.split(":")[1])
-                    self.mysterious_word_state = ["_"] * self.mysterious_word_length
                     self.result_text.configure(self, text=f"La palabra tiene {self.mysterious_word_length} caracteres")
                 
                 elif message.startswith("RESULT"):
@@ -126,7 +124,7 @@ class ClientApp(ctk.CTk):
         # Crear un contenedor Frame para las letras
         self.letters_frame = ctk.CTkFrame(self)
         self.letters_frame.pack(pady=5)  # Usamos pack para colocar el Frame
-        self.geometry(f"400x{self.attempts*44 + 250}")
+        self.geometry(f"450x{self.attempts*44 + 250}")
 
         # Ahora también añadimos los colores correspondientes a cada letra en el Frame
         for i, res in enumerate(result):

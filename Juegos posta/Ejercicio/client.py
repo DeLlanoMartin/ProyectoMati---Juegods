@@ -38,7 +38,7 @@ def receive_messages():
             
             elif "Ambos jugadores" in data:
                 guess = int(input("Adivina un número entre 1 y 100: "))
-                send_message(f"adivinanza:{guess}")
+                client_socket.sendall(guess.encode())
                 
         except ConnectionResetError:
             print("Conexión perdida con el servidor.")

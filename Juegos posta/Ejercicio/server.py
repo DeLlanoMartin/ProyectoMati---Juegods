@@ -6,6 +6,7 @@ clients = {}
 connection_order = []
 elecciones = []
 secret_number = random.randint(1, 100)
+moneda = 
 
 def handle_client(client_socket, client_id):
     global elecciones, secret_number
@@ -26,33 +27,10 @@ def handle_client(client_socket, client_id):
                 elecciones.append((int(eleccion), client_id))  
 
             if len(elecciones) == 2:
-                if elecciones[0][0] == elecciones[1][0]:
-
-                    message = "Ambos jugadores eligieron lo mismo. Por favor, adivinen un número entre 1 y 100."
-
-                    for cid, c in clients.items():
-                        c.sendall(message.encode())
-        
-                    guesses = {}
-                    for cid, c in clients.items():
-                        guess = int(c.recv(1024).decode())
-                        guesses[cid] = guess
-
-                    # Determinar quién está más cerca
-                    closest_player = min(guesses, key=lambda cid: abs(guesses[cid] - secret_number))
-                    for cid, c in clients.items():
-                        if cid == closest_player:
-                            c.sendall(f"Jugador {cid} empieza, su número estuvo más cerca de {secret_number}.".encode())
-                        else:
-                            c.sendall(f"Jugador {cid}, no estuviste tan cerca. Jugador {closest_player} empieza.".encode())
-                    
-                    turn = closest_player  # El jugador más cercano empieza
-                else:
-                    for cid, c in clients.items():
-                        c.sendall("Los jugadores eligieron cosas distintas.".encode())
-
-                # Limpiar elecciones para el próximo turno
-                elecciones = []
+                for cid, c in clients.items():
+                    c.sendall("Los jugadores eligieron cosas distintas.".encode())
+                
+                if elecciones[client_id] == moneda
 
             else:
                 print("Esperando el movimiento del otro jugador...")

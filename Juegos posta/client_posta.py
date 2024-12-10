@@ -53,6 +53,8 @@ class GameClient:
                 elif message.startswith("MOVE"):
                     _, move, player_id = message.split(":")
                     self.current_game.process_action(int(move), int(player_id))
+                elif message.startswith("GAME_RESTARTED"):
+                    self.current_game.restart_game()
                 
 
         except Exception as e:
@@ -99,7 +101,7 @@ class Game1Client(ctk.CTkFrame):
         self.socket.sendall("GAME_SELECTION:Game1".encode())
 
         # Botón para volver al menú principal
-        ctk.CTkButton(self, text="Volver al Menú", command=master.show_menu).pack(pady=20)
+        ctk.CTkButton(self, text="Volver al Menú", command=master.show_menu).pack(pady=20, side = "bottom")
 
     def show_winner_label(self, winner):
         """Mostrar un Label en el centro de la pantalla como una barra horizontal al ganar."""
@@ -157,27 +159,53 @@ class Game1Client(ctk.CTkFrame):
         
         list_even = []
         for button in self.buttons:
-            if button(state="disabled"):
-                list_even.append(1)
-            elif button(state="enabled"):
-                list_even.append(0)
+            if button.cget("state") == "disabled":
+                list_even.append(1)  # Representa un botón deshabilitado
+            elif button.cget("state") == "normal":
+                list_even.append(0)  # Representa un botón habilitado
 
-        if not 0 in list_even:
-            empate = True
-                
+        # Verificar si todos los botones están deshabilitados
+        if all(state == 1 for state in list_even):
+            print("Todos los botones están deshabilitados.")
+            self.client.empate = True
+        else:
+            print("Todavía hay botones habilitados.")
+
+        if self.client.empate and not self.client.winner:
+            print("entra al if")
+            self.after(0, self.create_rematch_button)
+            print("se ejecutó el after")
         
-        if empate:
-            self.even_label = ctk.CTkLabel(
+    def create_rematch_button(self):
+        """Crear el botón de revancha."""
+        print("entró a crear botón rematch")
+        self.even_label = ctk.CTkLabel(
             self,
-                text="Empate!",
-                font=("Arial", 24, "bold"),  # Texto en negrita
-                fg_color="#FF69B4",         # Color melón
-                text_color="white",         # Texto blanco
-                width=self.winfo_width(),   # Ancho del Label igual al de la pantalla
-                height=50                   # Altura de la barra
-            )
-            # Posicionar el Label como una barra horizontal en el medio
-            self.even_label.place(relx=0.5, rely=0.5, anchor="center")
+            text="Empate!",
+            font=("Arial", 24, "bold"), # Texto en negrita
+            fg_color="yellow",         # Color melón
+            text_color="black",         # Texto blanco
+            width=self.winfo_width(),   # Ancho del Label igual al de la pantalla
+            height=50                   # Altura de la barra
+        )
+        self.even_label.place(relx=0.5, rely=0.5, anchor="center")
+        # Posicionar el Label como una barra horizontal en el medio
+        self.rematch_button = ctk.CTkButton(self, text="Revancha", command=lambda:self.socket.sendall("RESTART".encode()))
+        self.rematch_button.pack(pady=5)
+        self.master.geometry("500x575")
+    
+    def restart_game(self):
+        self.master.geometry("500x525")
+        self.client.turn = 1  # Reinicia el turno global
+        self.client.winner = None  # Reinicia el ganador
+        self.client.empate = False
+        self.board = [None] * 9
+        for button in self.buttons:
+            button.configure(text="", fg_color="#1e6498", state="normal")
+        if hasattr(self, "even_label"):
+            self.even_label.destroy()
+        if hasattr(self, "rematch_button"):
+            self.rematch_button.destroy()
 
     def update_game(self, action):
         if self.client.turn != self.client_id:
@@ -218,7 +246,7 @@ class Game2Client(ctk.CTkFrame):
         self.socket.sendall("GAME_SELECTION:Game2".encode())
 
         # Botón para volver al menú principal
-        ctk.CTkButton(self, text="Volver al Menú", command=master.show_menu).pack(pady=20)
+        ctk.CTkButton(self, text="Volver al Menú", command=master.show_menu).pack(pady=20, side="bottom")
 
     def show_winner_label(self, winner):
         """Mostrar un Label en el centro de la pantalla como una barra horizontal al ganar."""
@@ -226,7 +254,7 @@ class Game2Client(ctk.CTkFrame):
         self.winner_label = ctk.CTkLabel(
             self,
             text=winner_text,
-            font=("Arial", 24, "bold"),  # Texto en negrita
+            font=("Arial", 24, "bold"), # Texto en negrita
             fg_color="#FF69B4",         # Color melón
             text_color="white",         # Texto blanco
             corner_radius=10,           # Bordes redondeados
@@ -255,6 +283,7 @@ class Game2Client(ctk.CTkFrame):
                 padx=2, 
                 pady=2
             )
+        
         for fila in range(6):
             for columna in range(7):
                 # Crear cada etiqueta con más redondez
@@ -289,6 +318,54 @@ class Game2Client(ctk.CTkFrame):
                 for etiqueta in fila:  # Recorrer cada etiqueta individualmente
                     etiqueta.configure(state="disabled")
             print("se deshabilitaron los botones")
+
+        # Recorrer todos los botones en la matriz
+        if self.check_all_marked():
+            print("todos los botones ocupados")
+            self.after(0, self.create_rematch_button)
+        else:
+            print("Aún hay botones vacíos.")
+    
+    def check_all_marked(self):
+        for row in self.etiquetas:
+            for label in row:
+                # Verificar si el bg_color del label es blanco (vacío)
+                if label.cget("fg_color") == "white":  # Cambiar por el color adecuado si es diferente
+                    return False  # Si alguna celda está vacía, devolver False
+        return True  # Si todas las celdas están marcadas, devolver True
+
+    def create_rematch_button(self):
+        """Crear el botón de revancha."""
+        print("entró a crear botón rematch")
+        self.even_label = ctk.CTkLabel(
+            self,
+            text="Empate!",
+            font=("Arial", 24, "bold"), # Texto en negrita
+            fg_color="yellow",         # Color melón
+            text_color="black",         # Texto blanco
+            width=self.winfo_width(),   # Ancho del Label igual al de la pantalla
+            height=50                   # Altura de la barra
+        )
+        self.even_label.place(relx=0.5, rely=0.5, anchor="center")
+        # Posicionar el Label como una barra horizontal en el medio
+        self.rematch_button = ctk.CTkButton(self, text="Revancha", command=lambda:self.socket.sendall("RESTART".encode()))
+        self.rematch_button.pack(pady=5)
+        self.master.geometry("405x590")
+    
+    def restart_game(self):
+        self.master.geometry("405x550")
+        self.client.turn = 1  # Reinicia el turno global
+        self.client.winner = None  # Reinicia el ganador
+        self.client.empate = False
+        self.board = [[0 for _ in range(7)] for _ in range(6)]
+        for row in self.etiquetas:
+            for label in row:
+                # Reiniciar el color de fondo a blanco (o el color predeterminado que uses)
+                label.configure(fg_color="white")
+        if hasattr(self, "even_label"):
+            self.even_label.destroy()
+        if hasattr(self, "rematch_button"):
+            self.rematch_button.destroy()
 
     def update_game(self, action):
         if self.client.winner:
@@ -486,7 +563,7 @@ class GameClientGUI(ctk.CTk):
             self.client.current_game.destroy()  # Destruir el frame actual del juego
             self.client.current_game = None
             self.client.contador_puntos = self.client.contador_puntos
-            print(f"puntos desde volver: {self.client.contador_puntos}")
+            self.client.empate = False
             self.score_label.configure(text=f"Puntaje: {self.client.contador_puntos}")
         self.menu_frame.pack(fill="both", expand=True)
 
@@ -495,6 +572,7 @@ class GameClientGUI(ctk.CTk):
         self.geometry("500x525")
         self.client.turn = 1  # Reinicia el turno global
         self.client.winner = None  # Reinicia el ganador
+        self.client.empate = False
         self.client.current_game = Game1Client(self, self.client, self.client.socket)  # Nueva instancia
         self.switch_to_game(self.client.current_game)
 
@@ -504,6 +582,7 @@ class GameClientGUI(ctk.CTk):
         self.geometry("405x550")
         self.client.turn = 1  # Reinicia el turno global
         self.client.winner = None  # Reinicia el ganador
+        self.client.empate = False
         self.client.current_game = Game2Client(self, self.client, self.client.socket)
         self.switch_to_game(self.client.current_game)
 
@@ -512,6 +591,7 @@ class GameClientGUI(ctk.CTk):
         self.geometry("500x600")
         self.client.turn = 1  # Reinicia el turno global
         self.client.winner = None  # Reinicia el ganador
+        self.client.empate = False
         self.client.current_game = Game3Client(self, self.client, self.client.socket)
         self.switch_to_game(self.client.current_game)
 

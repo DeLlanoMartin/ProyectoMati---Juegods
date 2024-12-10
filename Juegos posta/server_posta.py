@@ -102,16 +102,16 @@ class Game1:
         if data.startswith("MOVE"):
             move = int(data.split(":")[1])
             self.board[move] = "X" if int(client_id) == 1 else "O"
-            winner = self.check_winner()
+            self.winner = self.check_winner()
 
-            if winner:
+            if self.winner:
                 for client in self.client_pair:
                     client.sendall(f"WINNER:{client_id}".encode())
             
             for client in self.client_pair:
                 client.sendall(f"MOVE:{move}:{client_id}".encode())
             
-            if not winner:
+            if not self.winner:
                 if self.turn == 1:
                     self.turn =2
                 elif self.turn == 2:
@@ -126,6 +126,11 @@ class Game1:
             for c in self.client_pair:
                 c.sendall("GAME_OVER".encode())
                 self.winner= None
+        elif data == "RESTART":
+            self.turn = 1
+            self.board = [None] * 9
+            self.winner = None
+            client.sendall("GAME_RESTARTED".encode())
 
 
 # Clase Juego 2
@@ -197,6 +202,11 @@ class Game2:
             for c in self.client_pair:
                 c.sendall("GAME_OVER".encode())
                 self.winner= None
+        elif data == "RESTART":
+            self.board = [[0 for _ in range(7)] for _ in range(6)]
+            self.turn = 1
+            self.winner = None
+            client.sendall("GAME_RESTARTED".encode())
 
 
 # Clase Juego 2
